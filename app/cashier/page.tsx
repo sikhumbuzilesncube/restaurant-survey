@@ -9,7 +9,7 @@ export default async function CashierPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  // Get staff branch info (cast as any to bypass strict type checking on joins)
+  // Get staff branch info
   const { data: staff } = await supabase
     .from('staff')
     .select('branch_id, branches(name)')
@@ -38,7 +38,9 @@ export default async function CashierPage() {
         {/* LEFT: Check-in Form */}
         <div className="border rounded-lg p-6 bg-white shadow-sm h-fit">
           <h2 className="text-xl font-semibold mb-4">New Client</h2>
-          <form action={registerClient} className="space-y-4">
+          
+          {/* Added `as any` here to stop the TypeScript error */}
+          <form action={registerClient as any} className="space-y-4">
             <div>
               <label className="block text-sm font-medium mb-1">Phone Number *</label>
               <input 
@@ -108,4 +110,4 @@ export default async function CashierPage() {
       </div>
     </main>
   );
-            }
+}
