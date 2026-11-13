@@ -1,5 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/server';
 
+export const dynamic = 'force-dynamic'; // <--- THIS LINE FIXES IT
+
 export default async function MockOutboxPage() {
   const supabase = createAdminClient();
   
