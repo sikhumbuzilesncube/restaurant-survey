@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
 export function createClient() {
   const cookieStore = cookies();
@@ -15,25 +16,22 @@ export function createClient() {
         setAll(cookiesToSet) {
           try {
             cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options),
+              cookieStore.set(name, value, options)
             );
           } catch {
-            // Called from a Server Component — safe to ignore,
-            // middleware handles session refresh.
+            // Called from a Server Component — safe to ignore.
           }
         },
       },
-    },
+    }
   );
 }
-
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
 // Service-role client — bypasses RLS. Server-only.
 export function createAdminClient() {
   return createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } },
+    { auth: { autoRefreshToken: false, persistSession: false } }
   );
 }
