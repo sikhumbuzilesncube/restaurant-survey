@@ -3,10 +3,12 @@ import { createAdminClient } from '@/lib/supabase/server';
 export default async function MockOutboxPage() {
   const supabase = createAdminClient();
   
-  const { data: messages } = await supabase
+  const { data: messagesData } = await supabase
     .from('mock_outbox')
     .select('*')
     .order('created_at', { ascending: false });
+
+  const messages = messagesData as any[];
 
   return (
     <main className="p-8 max-w-2xl mx-auto space-y-6">
@@ -36,4 +38,4 @@ export default async function MockOutboxPage() {
       </div>
     </main>
   );
-}
+            }
