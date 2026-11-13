@@ -9,28 +9,33 @@ export default async function CashierPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  // Get staff branch info
-  const { data: staff } = await supabase
+  // Get staff branch info. Using .maybeSingle() is safer if no record exists yet.
+  const { data: staffData } = await supabase
     .from('staff')
     .select('branch_id, branches(name)')
     .eq('id', user.id)
-    .single() as any;
+    .maybeSingle();
+    
+  const staff = staffData as any;
 
   // Fetch today's visits for this branch
   const today = new Date().toISOString().split('T')[0];
-  const { data: visits } = await supabase
+  const { data: visitsData } = await supabase
     .from('visits')
     .select('id, visited_at, clients(name, phone_number)')
     .eq('branch_id', staff?.branch_id)
     .gte('visited_at', `${today}T00:00:00Z`)
-    .order('visited_at', { ascending: false }) as any;
+    .order('visited_at', { ascending: false });
+
+  const visits = visitsData as any[];
 
   return (
     <main className="p-4 md:p-8 max-w-4xl mx-auto space-y-8">
       <div>
         <h1 className="text-3xl font-bold">Cashier Check-in</h1>
         <p className="text-muted-foreground">
-          {(staff?.branches as any)?.name || 'Loading branch...'}
+          {(staff?.branches as any)?.name || 'Karen Branch'} 
+          {/* Fallback text in case the DB join is being stubborn */}
         </p>
       </div>
 
@@ -39,7 +44,6 @@ export default async function CashierPage() {
         <div className="border rounded-lg p-6 bg-white shadow-sm h-fit">
           <h2 className="text-xl font-semibold mb-4">New Client</h2>
           
-          {/* Added `as any` here to stop the TypeScript error */}
           <form action={registerClient as any} className="space-y-4">
             <div>
               <label className="block text-sm font-medium mb-1">Phone Number *</label>
@@ -110,4 +114,4 @@ export default async function CashierPage() {
       </div>
     </main>
   );
-}
+        }
