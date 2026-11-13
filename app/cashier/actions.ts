@@ -4,7 +4,8 @@ import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import crypto from 'crypto';
 
-export async function registerClient(formData: FormData) {
+// Explicitly telling TypeScript this function returns a Promise with an object
+export async function registerClient(formData: FormData): Promise<{ error?: string; success?: boolean }> {
   const supabase = createClient();
 
   // 1. Verify user is logged in
@@ -62,4 +63,4 @@ export async function registerClient(formData: FormData) {
   // 7. Refresh the page so the new client shows up in the list
   revalidatePath('/cashier');
   return { success: true };
-    }
+  }
