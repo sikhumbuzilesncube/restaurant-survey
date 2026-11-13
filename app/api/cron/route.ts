@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 
+export const dynamic = 'force-dynamic'; // <--- THIS LINE FIXES IT
+
 export async function GET() {
   const supabase = createAdminClient();
   const now = new Date().toISOString();
@@ -41,4 +43,4 @@ export async function GET() {
   }
 
   return NextResponse.json({ success: true, processed });
-        }
+}
