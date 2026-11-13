@@ -9,12 +9,12 @@ export default async function CashierPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  // Get staff branch info
+  // Get staff branch info (cast as any to bypass strict type checking on joins)
   const { data: staff } = await supabase
     .from('staff')
     .select('branch_id, branches(name)')
     .eq('id', user.id)
-    .single();
+    .single() as any;
 
   // Fetch today's visits for this branch
   const today = new Date().toISOString().split('T')[0];
@@ -23,14 +23,14 @@ export default async function CashierPage() {
     .select('id, visited_at, clients(name, phone_number)')
     .eq('branch_id', staff?.branch_id)
     .gte('visited_at', `${today}T00:00:00Z`)
-    .order('visited_at', { ascending: false });
+    .order('visited_at', { ascending: false }) as any;
 
   return (
     <main className="p-4 md:p-8 max-w-4xl mx-auto space-y-8">
       <div>
         <h1 className="text-3xl font-bold">Cashier Check-in</h1>
         <p className="text-muted-foreground">
-          {staff?.branches?.name || 'Loading branch...'}
+          {(staff?.branches as any)?.name || 'Loading branch...'}
         </p>
       </div>
 
@@ -92,11 +92,11 @@ export default async function CashierPage() {
             {visits?.length === 0 && (
               <p className="text-muted-foreground text-sm">No check-ins yet today.</p>
             )}
-            {visits?.map((visit) => (
+            {visits?.map((visit: any) => (
               <div key={visit.id} className="bg-white p-3 rounded border flex justify-between items-center">
                 <div>
-                  <p className="font-medium">{visit.clients?.name || 'Unknown Client'}</p>
-                  <p className="text-sm text-gray-500">{visit.clients?.phone_number}</p>
+                  <p className="font-medium">{(visit.clients as any)?.name || 'Unknown Client'}</p>
+                  <p className="text-sm text-gray-500">{(visit.clients as any)?.phone_number}</p>
                 </div>
                 <p className="text-xs text-gray-400">
                   {new Date(visit.visited_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -108,4 +108,4 @@ export default async function CashierPage() {
       </div>
     </main>
   );
-    }
+            }
