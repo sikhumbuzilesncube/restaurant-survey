@@ -10,7 +10,8 @@ export async function registerClient(formData: FormData): Promise<{ error?: stri
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: 'Not authenticated' };
 
-  const { data: staff } = await supabase.from('staff').select('branch_id').eq('id', user.id).single();
+  const { data: staffData } = await supabase.from('staff').select('branch_id').eq('id', user.id).single();
+  const staff = staffData as any;
   if (!staff) return { error: 'Staff record not found' };
 
   const phone = formData.get('phone') as string;
@@ -23,7 +24,7 @@ export async function registerClient(formData: FormData): Promise<{ error?: stri
   const secret = process.env.PHONE_HASH_SECRET || 'fallback-secret';
   const phoneHash = crypto.createHmac('sha256', secret).update(phone).digest('hex');
 
-  const { data: client, error: clientError } = await supabase
+  const { data: clientData, error: clientError } = await supabase
     .from('clients')
     .upsert(
       {
@@ -41,6 +42,7 @@ export async function registerClient(formData: FormData): Promise<{ error?: stri
     .select()
     .single();
 
+  const client = clientData as any;
   if (clientError || !client) return { error: 'Failed to save client' };
 
   await supabase.from('visits').insert({
@@ -50,8 +52,6 @@ export async function registerClient(formData: FormData): Promise<{ error?: stri
     visited_at: new Date().toISOString()
   });
 
-  // ── NEW: SCHEDULE THE SURVEY JOB ──
-  // Set the run time to 30 minutes from right now
   const runAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
 
   await supabase.from('job_queue').insert({
@@ -66,4 +66,4 @@ export async function registerClient(formData: FormData): Promise<{ error?: stri
 
   revalidatePath('/cashier');
   return { success: true };
-}
+          }
