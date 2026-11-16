@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import { resolveAlert } from './actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,7 +11,6 @@ export default async function DashboardPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  // Get staff branch info
   const { data: staffData } = await supabase
     .from('staff')
     .select('branch_id, branches(name)')
@@ -19,7 +19,7 @@ export default async function DashboardPage() {
     
   const staff = staffData as any;
 
-  // 1. Fetch KPIs (Aggregated data)
+  // 1. Fetch KPIs
   const { data: surveysData } = await supabase
     .from('surveys')
     .select('rating, status')
@@ -36,10 +36,13 @@ export default async function DashboardPage() {
     ? (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1) 
     : '0.0';
 
-  // 2. Fetch recent survey responses (The Feed)
+  // Count unresolved bad reviews
+  const unresolvedAlerts = surveys.filter(s => s.rating && s.rating <= 2 && !s.is_resolved).length;
+
+  // 2. Fetch recent feedback
   const { data: recentSurveysData } = await supabase
     .from('surveys')
-    .select('id, rating, emoji, comment, responded_at, clients(name, phone_number)')
+    .select('id, rating, emoji, comment, responded_at, is_resolved, clients(name, phone_number)')
     .eq('branch_id', staff?.branch_id)
     .eq('status', 'responded')
     .order('responded_at', { ascending: false })
@@ -67,6 +70,17 @@ export default async function DashboardPage() {
           </Link>
         </div>
       </div>
+
+      {/* Alert Banner */}
+      {unresolvedAlerts > 0 && (
+        <div className="bg-red-50 border border-red-200 text-red-800 p-4 rounded-lg flex items-center gap-3">
+          <span className="text-2xl">⚠️</span>
+          <div>
+            <p className="font-bold">Action Required</p>
+            <p className="text-sm">You have {unresolvedAlerts} unhappy client(s) that need attention.</p>
+          </div>
+        </div>
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -101,34 +115,60 @@ export default async function DashboardPage() {
             </div>
           )}
 
-          {recentSurveys.map((survey) => (
-            <div key={survey.id} className="border p-4 rounded-lg bg-white flex gap-4 shadow-sm items-start">
-              <div className="text-4xl">{survey.emoji}</div>
-              <div className="flex-1">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <p className="font-semibold">{(survey.clients as any)?.name || 'Unknown'}</p>
-                    <p className="text-xs text-gray-500">{(survey.clients as any)?.phone_number}</p>
+          {recentSurveys.map((survey) => {
+            const isBad = survey.rating <= 2;
+            const isResolved = survey.is_resolved;
+
+            return (
+              <div 
+                key={survey.id} 
+                className={`border p-4 rounded-lg flex gap-4 shadow-sm items-start ${
+                  isBad && !isResolved ? 'bg-red-50 border-red-300' : 'bg-white'
+                }`}
+              >
+                <div className="text-4xl">{survey.emoji}</div>
+                <div className="flex-1">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="font-semibold">{(survey.clients as any)?.name || 'Unknown'}</p>
+                      <p className="text-xs text-gray-500">{(survey.clients as any)?.phone_number}</p>
+                    </div>
+                    <p className="text-xs text-gray-400">
+                      {new Date(survey.responded_at).toLocaleString()}
+                    </p>
                   </div>
-                  <p className="text-xs text-gray-400">
-                    {new Date(survey.responded_at).toLocaleString()}
-                  </p>
-                </div>
-                <div className="mt-2 flex items-center gap-1">
-                  <span className="text-sm font-medium bg-gray-100 px-2 py-1 rounded">Rating: {survey.rating}/5</span>
-                  {survey.rating <= 2 && (
-                    <span className="text-xs font-bold text-red-600 bg-red-100 px-2 py-1 rounded">Needs Attention</span>
+                  
+                  <div className="mt-2 flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-medium bg-gray-100 px-2 py-1 rounded">Rating: {survey.rating}/5</span>
+                    
+                    {isBad && !isResolved && (
+                      <form action={async () => {
+                        'use server';
+                        await resolveAlert(survey.id);
+                      }}>
+                        <button type="submit" className="text-xs font-bold text-white bg-red-600 hover:bg-red-700 px-3 py-1 rounded">
+                          Mark as Resolved
+                        </button>
+                      </form>
+                    )}
+
+                    {isBad && isResolved && (
+                      <span className="text-xs font-bold text-green-700 bg-green-100 px-3 py-1 rounded">
+                        ✓ Resolved
+                      </span>
+                    )}
+                  </div>
+                  
+                  {survey.comment && (
+                    <p className="mt-3 text-sm text-gray-700 italic border-l-2 pl-3">"{survey.comment}"</p>
                   )}
                 </div>
-                {survey.comment && (
-                  <p className="mt-3 text-sm text-gray-700 italic border-l-2 pl-3">"{survey.comment}"</p>
-                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
     </main>
   );
-    }
+                                                   }
