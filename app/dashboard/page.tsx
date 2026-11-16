@@ -61,7 +61,17 @@ export default async function DashboardPage() {
             {(staff?.branches as any)?.name || 'Loading...'}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <form action={async () => {
+            'use server';
+            await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/cron/automations`);
+            redirect('/dashboard'); // Refresh the page after running
+          }}>
+            <button type="submit" className="text-sm bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700">
+              Run Daily Automations
+            </button>
+          </form>
+
           <Link href="/dashboard/promotions" className="text-sm border px-4 py-2 rounded-md hover:bg-gray-50">
             Promotions
           </Link>
@@ -171,4 +181,4 @@ export default async function DashboardPage() {
 
     </main>
   );
-                                                   }
+    }
