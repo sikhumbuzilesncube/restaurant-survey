@@ -13,17 +13,15 @@ export async function simulateReply(phone: string, emoji: string) {
 
   if (!rating) return { error: 'Invalid emoji' };
 
-  // 1. Find the client
   const { data: clientData } = await supabase
     .from('clients')
-    .select('id, branch_id')
+    .select('id, branch_id, name')
     .eq('phone_number', phone)
     .single();
     
   const client = clientData as any;
   if (!client) return { error: 'Client not found' };
 
-  // 2. Find the latest pending survey for this client
   const { data: surveyData } = await supabase
     .from('surveys')
     .select('id')
@@ -31,11 +29,9 @@ export async function simulateReply(phone: string, emoji: string) {
     .eq('status', 'pending')
     .order('created_at', { ascending: false })
     .limit(1)
-    .maybeSingle(); // Use maybeSingle so it doesn't crash if none exist
+    .maybeSingle();
 
   const survey = surveyData as any;
-
-  // 3. Update the survey or create a new one
   let surveyId = survey?.id;
 
   if (surveyId) {
@@ -60,7 +56,7 @@ export async function simulateReply(phone: string, emoji: string) {
     surveyId = (newSurvey as any)?.id;
   }
 
-  // 4. Log the inbound message
+  // Log inbound message
   await supabase.from('messages').insert({
     client_id: client.id,
     survey_id: surveyId,
@@ -69,7 +65,17 @@ export async function simulateReply(phone: string, emoji: string) {
     status: 'received'
   });
 
+  // ── NEW: ALERT MANAGER IF RATING IS BAD ──
+  if (rating <= 2) {
+    await supabase.from('mock_outbox').insert({
+      to_phone: 'MANAGER_PHONE',
+      is_manager_alert: true,
+      message_type: 'alert',
+      body: `🚨 URGENT: ${client.name || phone} just rated your restaurant a ${rating}/5 (${emoji}). Please check the dashboard and call them immediately.`
+    });
+  }
+
   revalidatePath('/dev/outbox');
   revalidatePath('/dashboard');
   return { success: true };
-}
+        }
