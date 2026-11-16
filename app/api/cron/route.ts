@@ -7,7 +7,6 @@ export async function GET() {
   const supabase = createAdminClient();
   const now = new Date().toISOString();
 
-  // 1. Find pending jobs
   const { data: jobsData, error: jobFetchError } = await supabase
     .from('job_queue')
     .select('*')
@@ -25,12 +24,29 @@ export async function GET() {
   const processed = [];
   const errors = [];
 
-  // 2. Loop through jobs
   for (const job of jobs) {
     if (job.type === 'send_survey') {
       const { client_id, phone, name } = job.payload;
+      
+      // Get branch_id for the survey record
+      const { data: clientData } = await supabase.from('clients').select('branch_id').eq('id', client_id).single();
+      const branch_id = (clientData as any)?.branch_id;
 
-      // Try to insert into mock_outbox
+      // 1. Create the PENDING survey
+      const { data: surveyData, error: surveyError } = await supabase.from('surveys').insert({
+        client_id: client_id,
+        branch_id: branch_id,
+        status: 'pending',
+        sent_at: new Date().toISOString()
+      }).select().single();
+
+      if (surveyError) {
+        console.error("Survey insert failed:", surveyError);
+        errors.push({ jobId: job.id, error: surveyError.message });
+        continue;
+      }
+
+      // 2. Insert into mock_outbox
       const { error: outboxError } = await supabase.from('mock_outbox').insert({
         to_phone: phone,
         body: `Hi ${name || 'there'} 👋 Thanks for visiting Mama Oliech! How was your experience? Reply with one emoji: 😡 😕 😐 😊 🤩`
@@ -39,22 +55,23 @@ export async function GET() {
       if (outboxError) {
         console.error("Outbox insert failed:", outboxError);
         errors.push({ jobId: job.id, error: outboxError.message });
-        continue; // Skip to next job if this fails
+        continue; 
       }
 
-      // Try to insert into messages log
+      // 3. Log the outbound message
       await supabase.from('messages').insert({
         client_id,
+        survey_id: (surveyData as any).id,
         direction: 'outbound',
         body: `[MOCK SURVEY SENT]`,
         status: 'sent'
       });
 
-      // Mark job as done
+      // 4. Mark job as done
       await supabase.from('job_queue').update({ status: 'done' }).eq('id', job.id);
       processed.push(job.id);
     }
   }
 
   return NextResponse.json({ success: true, processed, errors });
-      }
+    }
