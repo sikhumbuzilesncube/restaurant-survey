@@ -51,16 +51,21 @@ export default async function DashboardPage() {
     <main className="p-4 md:p-8 max-w-5xl mx-auto space-y-8">
       
       {/* Header */}
-      <div className="flex justify-between items-end border-b pb-4">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end border-b pb-4 gap-4">
         <div>
           <h1 className="text-3xl font-bold">Manager Dashboard</h1>
           <p className="text-muted-foreground">
             {(staff?.branches as any)?.name || 'Loading...'}
           </p>
         </div>
-        <Link href="/cashier" className="text-sm bg-black text-white px-4 py-2 rounded-md hover:bg-gray-800">
-          Go to Cashier
-        </Link>
+        <div className="flex gap-2">
+          <Link href="/dashboard/promotions" className="text-sm border px-4 py-2 rounded-md hover:bg-gray-50">
+            Promotions
+          </Link>
+          <Link href="/cashier" className="text-sm bg-black text-white px-4 py-2 rounded-md hover:bg-gray-800">
+            Go to Cashier
+          </Link>
+        </div>
       </div>
 
       {/* KPI Cards */}
@@ -126,4 +131,4 @@ export default async function DashboardPage() {
 
     </main>
   );
-                       }
+    }
