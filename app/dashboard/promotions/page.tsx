@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
+import { createCampaign } from './actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,8 +10,20 @@ export default async function PromotionsPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
+  const { data: staffData } = await supabase.from('staff').select('branch_id').eq('id', user.id).single();
+  const staff = staffData as any;
+
+  // Fetch existing campaigns
+  const { data: campaignsData } = await supabase
+    .from('promotions')
+    .select('*')
+    .eq('branch_id', staff?.branch_id)
+    .order('created_at', { ascending: false });
+    
+  const campaigns = campaignsData as any[] || [];
+
   return (
-    <main className="p-4 md:p-8 max-w-4xl mx-auto space-y-8">
+    <main className="p-4 md:p-8 max-w-5xl mx-auto space-y-8">
       <div className="flex justify-between items-center border-b pb-4">
         <div>
           <h1 className="text-3xl font-bold">Promotions</h1>
@@ -25,7 +38,12 @@ export default async function PromotionsPage() {
         {/* Form */}
         <div className="border rounded-lg p-6 bg-white shadow-sm h-fit">
           <h2 className="text-xl font-semibold mb-4">New Campaign</h2>
-          <form className="space-y-4">
+          <form action={async (formData) => {
+            'use server';
+            const res = await createCampaign(formData);
+            if (res?.error) alert(res.error);
+            if (res?.success) alert(`Campaign queued for ${res.count} clients!`);
+          }} className="space-y-4">
             <div>
               <label className="block text-sm font-medium mb-1">Campaign Name (Internal)</label>
               <input name="name" type="text" required placeholder="e.g. Weekend Special" className="w-full border rounded-md p-2" />
@@ -53,29 +71,33 @@ export default async function PromotionsPage() {
               <p className="text-xs text-gray-500 mt-1">Use {"{{name}}"} to insert the client's name.</p>
             </div>
 
-            <button type="button" className="w-full bg-black text-white p-2 rounded-md hover:bg-gray-800">
-              Create & Schedule Campaign
+            <button type="submit" className="w-full bg-black text-white p-2 rounded-md hover:bg-gray-800">
+              Create & Queue Campaign
             </button>
           </form>
         </div>
 
-        {/* Info Panel */}
+        {/* Campaign List */}
         <div className="space-y-4">
-          <div className="border rounded-lg p-6 bg-blue-50 border-blue-200">
-            <h3 className="font-semibold text-blue-800 mb-2">How it works</h3>
-            <ul className="text-sm text-blue-700 space-y-2 list-disc pl-4">
-              <li>Campaigns are sent via WhatsApp templates.</li>
-              <li>We respect WhatsApp anti-spam rules (max 1 promo per client every 14 days).</li>
-              <li>You can pause or cancel a campaign before it finishes sending.</li>
-            </ul>
-          </div>
-          
-          <div className="border rounded-lg p-6 bg-gray-50">
-            <h3 className="font-semibold mb-2">Active Campaigns</h3>
-            <p className="text-sm text-gray-500">No active campaigns yet.</p>
-          </div>
+          <h2 className="text-xl font-semibold">Recent Campaigns</h2>
+          {campaigns.length === 0 && (
+            <p className="text-gray-500 text-sm">No campaigns created yet.</p>
+          )}
+          {campaigns.map((camp: any) => (
+            <div key={camp.id} className="border p-4 rounded-lg bg-white shadow-sm">
+              <div className="flex justify-between items-start mb-2">
+                <h3 className="font-bold">{camp.name}</h3>
+                <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded capitalize">{camp.status}</span>
+              </div>
+              <p className="text-sm text-gray-600 mb-2 truncate">{camp.message_template}</p>
+              <div className="text-xs text-gray-500 flex gap-4">
+                <span>Audience: {camp.audience_type}</span>
+                <span>Queued: {camp.total_sent}</span>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </main>
   );
-        }
+}
