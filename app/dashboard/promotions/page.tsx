@@ -38,12 +38,8 @@ export default async function PromotionsPage() {
         {/* Form */}
         <div className="border rounded-lg p-6 bg-white shadow-sm h-fit">
           <h2 className="text-xl font-semibold mb-4">New Campaign</h2>
-          <form action={async (formData) => {
-            'use server';
-            const res = await createCampaign(formData);
-            if (res?.error) alert(res.error);
-            if (res?.success) alert(`Campaign queued for ${res.count} clients!`);
-          }} className="space-y-4">
+          
+          <form action={createCampaign} className="space-y-4">
             <div>
               <label className="block text-sm font-medium mb-1">Campaign Name (Internal)</label>
               <input name="name" type="text" required placeholder="e.g. Weekend Special" className="w-full border rounded-md p-2" />
@@ -55,7 +51,6 @@ export default async function PromotionsPage() {
                 <option value="all">All Clients</option>
                 <option value="inactive">Inactive (Haven't visited in 30 days)</option>
                 <option value="birthday">Birthday (Today)</option>
-                <option value="happy">Happy Clients (Rated 4-5)</option>
               </select>
             </div>
 
