@@ -8,39 +8,31 @@ export async function createCampaign(formData: FormData) {
   const supabase = createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: 'Not authenticated' };
+  if (!user) throw new Error('Not authenticated');
 
   const { data: staffData } = await supabase.from('staff').select('branch_id').eq('id', user.id).single();
   const staff = staffData as any;
-  if (!staff) return { error: 'Staff record not found' };
+  if (!staff) throw new Error('Staff record not found');
 
   const name = formData.get('name') as string;
   const audience = formData.get('audience') as string;
   const messageTemplate = formData.get('message') as string;
 
-  if (!name || !audience || !messageTemplate) return { error: 'All fields are required' };
+  if (!name || !audience || !messageTemplate) throw new Error('All fields are required');
 
-  // 1. Fetch the target audience based on the dropdown selection
+  // 1. Fetch the target audience
   let query = supabase.from('clients').select('id, phone_number, name, last_visit_at, date_of_birth').eq('branch_id', staff.branch_id).eq('is_active', true);
 
   if (audience === 'inactive') {
-    // Inactive for 30 days
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
     query = query.or(`last_visit_at.lt.${thirtyDaysAgo},last_visit_at.is.null`);
-  } else if (audience === 'birthday') {
-    // This is a simplified birthday check for today. (We will improve this later)
-    const todayMonth = new Date().getMonth() + 1;
-    const todayDay = new Date().getDate();
-    // Supabase doesn't easily query dates by month/day without an RPC, so we fetch all and filter in JS for now
-  } else if (audience === 'happy') {
-    // We would need to join with surveys, but for simplicity, let's just grab all for now
   }
 
   const { data: clientsData, error: clientsError } = await query;
   const clients = clientsData as any[] || [];
 
-  if (clientsError) return { error: 'Failed to fetch audience' };
-  if (clients.length === 0) return { error: 'No clients match this audience' };
+  if (clientsError) throw new Error('Failed to fetch audience');
+  if (clients.length === 0) throw new Error('No clients match this audience');
 
   // 2. Create the Campaign record
   const { data: campaignData, error: campaignError } = await supabase
@@ -56,9 +48,9 @@ export async function createCampaign(formData: FormData) {
     .single();
 
   const campaign = campaignData as any;
-  if (campaignError || !campaign) return { error: 'Failed to create campaign' };
+  if (campaignError || !campaign) throw new Error('Failed to create campaign');
 
-  // 3. Queue the jobs for the worker
+  // 3. Queue the jobs
   const jobsToInsert = [];
   
   for (const client of clients) {
@@ -71,12 +63,11 @@ export async function createCampaign(formData: FormData) {
       }
     }
 
-    // Personalize the message
     let finalMessage = messageTemplate.replace(/{{name}}/g, client.name || 'there');
 
     jobsToInsert.push({
       type: 'send_promo',
-      run_at: new Date().toISOString(), // Send immediately for promos
+      run_at: new Date().toISOString(),
       payload: {
         campaign_id: campaign.id,
         client_id: client.id,
@@ -94,5 +85,5 @@ export async function createCampaign(formData: FormData) {
   await supabase.from('promotions').update({ total_sent: jobsToInsert.length }).eq('id', campaign.id);
 
   revalidatePath('/dashboard/promotions');
-  return { success: true, count: jobsToInsert.length };
-    }
+  redirect('/dashboard/promotions'); // This refreshes the page!
+      }
