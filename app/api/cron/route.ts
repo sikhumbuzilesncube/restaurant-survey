@@ -7,6 +7,7 @@ export async function GET() {
   const supabase = createAdminClient();
   const now = new Date().toISOString();
 
+  // 1. Find pending jobs
   const { data: jobsData, error: jobFetchError } = await supabase
     .from('job_queue')
     .select('*')
@@ -24,7 +25,10 @@ export async function GET() {
   const processed = [];
   const errors = [];
 
+  // 2. Loop through jobs
   for (const job of jobs) {
+    
+    // ── HANDLE SURVEYS ──
     if (job.type === 'send_survey') {
       const { client_id, phone, name } = job.payload;
       
@@ -32,7 +36,7 @@ export async function GET() {
       const { data: clientData } = await supabase.from('clients').select('branch_id').eq('id', client_id).single();
       const branch_id = (clientData as any)?.branch_id;
 
-      // 1. Create the PENDING survey
+      // Create the PENDING survey
       const { data: surveyData, error: surveyError } = await supabase.from('surveys').insert({
         client_id: client_id,
         branch_id: branch_id,
@@ -46,7 +50,7 @@ export async function GET() {
         continue;
       }
 
-      // 2. Insert into mock_outbox
+      // Insert into mock_outbox
       const { error: outboxError } = await supabase.from('mock_outbox').insert({
         to_phone: phone,
         body: `Hi ${name || 'there'} 👋 Thanks for visiting Mama Oliech! How was your experience? Reply with one emoji: 😡 😕 😐 😊 🤩`
@@ -58,7 +62,7 @@ export async function GET() {
         continue; 
       }
 
-      // 3. Log the outbound message
+      // Log the outbound message
       await supabase.from('messages').insert({
         client_id,
         survey_id: (surveyData as any).id,
@@ -67,11 +71,40 @@ export async function GET() {
         status: 'sent'
       });
 
-      // 4. Mark job as done
+      // Mark job as done
+      await supabase.from('job_queue').update({ status: 'done' }).eq('id', job.id);
+      processed.push(job.id);
+    }
+
+    // ── HANDLE PROMOTIONS ──
+    else if (job.type === 'send_promo') {
+      const { phone, message, client_id, campaign_id } = job.payload;
+
+      // Insert into mock_outbox
+      const { error: outboxError } = await supabase.from('mock_outbox').insert({
+        to_phone: phone,
+        body: message
+      });
+
+      if (outboxError) {
+        console.error("Outbox insert failed:", outboxError);
+        errors.push({ jobId: job.id, error: outboxError.message });
+        continue;
+      }
+
+      // Log the outbound message
+      await supabase.from('messages').insert({
+        client_id,
+        direction: 'outbound',
+        body: `[MOCK PROMO SENT]`,
+        status: 'sent'
+      });
+
+      // Mark job as done
       await supabase.from('job_queue').update({ status: 'done' }).eq('id', job.id);
       processed.push(job.id);
     }
   }
 
   return NextResponse.json({ success: true, processed, errors });
-    }
+}
