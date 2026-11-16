@@ -13,7 +13,7 @@ export async function simulateReply(phone: string, emoji: string) {
 
   if (!rating) return { error: 'Invalid emoji' };
 
-  // 1. Find the client by phone
+  // 1. Find the client
   const { data: clientData } = await supabase
     .from('clients')
     .select('id, branch_id')
@@ -23,7 +23,7 @@ export async function simulateReply(phone: string, emoji: string) {
   const client = clientData as any;
   if (!client) return { error: 'Client not found' };
 
-  // 2. Find their latest unanswered survey
+  // 2. Find the latest pending survey for this client
   const { data: surveyData } = await supabase
     .from('surveys')
     .select('id')
@@ -31,12 +31,14 @@ export async function simulateReply(phone: string, emoji: string) {
     .eq('status', 'pending')
     .order('created_at', { ascending: false })
     .limit(1)
-    .single();
+    .maybeSingle(); // Use maybeSingle so it doesn't crash if none exist
 
   const survey = surveyData as any;
 
-  // 3. Update the survey with the rating
-  if (survey) {
+  // 3. Update the survey or create a new one
+  let surveyId = survey?.id;
+
+  if (surveyId) {
     await supabase
       .from('surveys')
       .update({
@@ -45,28 +47,29 @@ export async function simulateReply(phone: string, emoji: string) {
         emoji: emoji,
         responded_at: new Date().toISOString()
       })
-      .eq('id', survey.id);
+      .eq('id', surveyId);
   } else {
-    // If no survey was found, create one as responded (for testing)
-    await supabase.from('surveys').insert({
+    const { data: newSurvey } = await supabase.from('surveys').insert({
       client_id: client.id,
       branch_id: client.branch_id,
       status: 'responded',
       rating: rating,
       emoji: emoji,
       responded_at: new Date().toISOString()
-    });
+    }).select().single();
+    surveyId = (newSurvey as any)?.id;
   }
 
   // 4. Log the inbound message
   await supabase.from('messages').insert({
     client_id: client.id,
+    survey_id: surveyId,
     direction: 'inbound',
     body: emoji,
     status: 'received'
   });
 
-  // 5. Refresh the page so the outbox shows it was replied to
   revalidatePath('/dev/outbox');
+  revalidatePath('/dashboard');
   return { success: true };
-    }
+}
