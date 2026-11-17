@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { resolveAlert } from './actions';
+import { runDailyAutomations } from './automations';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,7 +23,7 @@ export default async function DashboardPage() {
   // 1. Fetch KPIs
   const { data: surveysData } = await supabase
     .from('surveys')
-    .select('rating, status')
+    .select('rating, status, is_resolved')
     .eq('branch_id', staff?.branch_id);
 
   const surveys = surveysData as any[] || [];
@@ -36,7 +37,6 @@ export default async function DashboardPage() {
     ? (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1) 
     : '0.0';
 
-  // Count unresolved bad reviews
   const unresolvedAlerts = surveys.filter(s => s.rating && s.rating <= 2 && !s.is_resolved).length;
 
   // 2. Fetch recent feedback
@@ -64,8 +64,7 @@ export default async function DashboardPage() {
         <div className="flex flex-wrap gap-2">
           <form action={async () => {
             'use server';
-            await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/cron/automations`);
-            redirect('/dashboard'); // Refresh the page after running
+            await runDailyAutomations();
           }}>
             <button type="submit" className="text-sm bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700">
               Run Daily Automations
@@ -181,4 +180,4 @@ export default async function DashboardPage() {
 
     </main>
   );
-    }
+}
