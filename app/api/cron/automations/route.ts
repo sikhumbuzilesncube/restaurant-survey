@@ -1,9 +1,9 @@
-'use server';
-
+import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
-import { revalidatePath } from 'next/cache';
 
-export async function runDailyAutomations() {
+export const dynamic = 'force-dynamic';
+
+export async function GET() {
   const supabase = createAdminClient();
   
   const today = new Date();
@@ -11,20 +11,30 @@ export async function runDailyAutomations() {
   const todayDay = today.getDate();
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
-  const { data: allClients } = await supabase
+  const results = {
+    birthdaysFound: 0,
+    winbacksFound: 0,
+    errors: [] as string[]
+  };
+
+  const { data: allClients, error: clientFetchError } = await supabase
     .from('clients')
     .select('id, phone_number, name, date_of_birth, last_visit_at');
 
+  if (clientFetchError) {
+    return NextResponse.json({ error: clientFetchError.message }, { status: 500 });
+  }
+
   const clients = allClients as any[] || [];
-  const jobsToInsert = [];
+  
+  const birthdayJobs = [];
+  const winbackJobs = [];
 
   for (const client of clients) {
-    // Check Birthday
     if (client.date_of_birth) {
       const dob = new Date(client.date_of_birth);
-      // Note: Using UTC dates to match database
-      if ((dob.getUTCMonth() + 1) === todayMonth && dob.getUTCDate() === todayDay) {
-        jobsToInsert.push({
+      if ((dob.getMonth() + 1) === todayMonth && dob.getDate() === todayDay) {
+        birthdayJobs.push({
           type: 'send_promo',
           run_at: new Date().toISOString(),
           payload: {
@@ -33,14 +43,14 @@ export async function runDailyAutomations() {
             message: `Happy Birthday ${client.name || 'there'}! 🎉 Come celebrate with us today and enjoy a FREE dessert on us. Just show this message to your waiter!`
           }
         });
+        results.birthdaysFound++;
       }
     }
 
-    // Check Winback
     if (client.last_visit_at) {
       const lastVisit = new Date(client.last_visit_at);
       if (lastVisit < new Date(thirtyDaysAgo)) {
-        jobsToInsert.push({
+        winbackJobs.push({
           type: 'send_promo',
           run_at: new Date().toISOString(),
           payload: {
@@ -49,13 +59,21 @@ export async function runDailyAutomations() {
             message: `Hi ${client.name || 'there'}, we miss you! 😢 It's been a while since your last visit. Come back this week and get 15% off your meal. Use code: MISSYOU15`
           }
         });
+        results.winbacksFound++;
       }
     }
   }
 
-  if (jobsToInsert.length > 0) {
-    await supabase.from('job_queue').insert(jobsToInsert);
+  const allJobs = [...birthdayJobs, ...winbackJobs];
+
+  if (allJobs.length > 0) {
+    const { error: insertError } = await supabase.from('job_queue').insert(allJobs);
+    if (insertError) results.errors.push("Job insert failed: " + insertError.message);
   }
 
-  revalidatePath('/dashboard');
-        }
+  return NextResponse.json({ 
+    success: true, 
+    message: "Automations checked successfully",
+    results
+  });
+            }
