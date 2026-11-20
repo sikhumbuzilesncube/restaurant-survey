@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { resolveAlert } from './actions';
-import { runDailyAutomations } from './automations';
+import AutomationButton from './AutomationButton'; // Import the new button
 
 export const dynamic = 'force-dynamic';
 
@@ -62,14 +62,9 @@ export default async function DashboardPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <form action={async () => {
-            'use server';
-            await runDailyAutomations();
-          }}>
-            <button type="submit" className="text-sm bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700">
-              Run Daily Automations
-            </button>
-          </form>
+          
+          {/* THE NEW BUTTON */}
+          <AutomationButton />
 
           <Link href="/dashboard/promotions" className="text-sm border px-4 py-2 rounded-md hover:bg-gray-50">
             Promotions
