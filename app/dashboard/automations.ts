@@ -51,8 +51,9 @@ export async function runDailyAutomations() {
   }
 
   if (jobsToInsert.length > 0) {
-    await supabase.from('job_queue').insert(jobsToInsert);
+    const { error } = await supabase.from('job_queue').insert(jobsToInsert);
+    if (error) console.error("Failed to insert jobs:", error);
   }
 
   revalidatePath('/dashboard');
-           }
+    }
