@@ -11,9 +11,11 @@ export async function runDailyAutomations() {
   const todayDay = today.getDate();
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
-  const { data: allClients } = await supabase
+  const { data: allClients, error: fetchError } = await supabase
     .from('clients')
     .select('id, phone_number, name, date_of_birth, last_visit_at');
+
+  if (fetchError) throw new Error("Database fetch failed: " + fetchError.message);
 
   const clients = allClients as any[] || [];
   const jobsToInsert = [];
@@ -21,6 +23,7 @@ export async function runDailyAutomations() {
   for (const client of clients) {
     if (client.date_of_birth) {
       const dob = new Date(client.date_of_birth);
+      // Use UTC to avoid timezone bugs
       if ((dob.getUTCMonth() + 1) === todayMonth && dob.getUTCDate() === todayDay) {
         jobsToInsert.push({
           type: 'send_promo',
@@ -51,9 +54,11 @@ export async function runDailyAutomations() {
   }
 
   if (jobsToInsert.length > 0) {
-    const { error } = await supabase.from('job_queue').insert(jobsToInsert);
-    if (error) console.error("Failed to insert jobs:", error);
+    const { error: insertError } = await supabase.from('job_queue').insert(jobsToInsert);
+    if (insertError) throw new Error("Insert failed: " + insertError.message);
+  } else {
+    throw new Error("No clients matched the birthday or win-back criteria today.");
   }
 
   revalidatePath('/dashboard');
-    }
+  }
