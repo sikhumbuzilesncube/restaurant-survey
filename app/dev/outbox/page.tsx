@@ -1,7 +1,9 @@
 import { createAdminClient } from '@/lib/supabase/server';
 import { simulateReply } from './actions';
 
+// These two lines force the page to fetch fresh data every single time you visit
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export default async function MockOutboxPage() {
   const supabase = createAdminClient();
@@ -59,7 +61,7 @@ export default async function MockOutboxPage() {
               </div>
               <p className="text-gray-800 whitespace-pre-wrap mb-4">{msg.body}</p>
               
-              {/* ONLY SHOW EMOJIS FOR SURVEYS */}
+              {/* ONLY SHOW EMOJIS FOR SURVEYS (NOT PROMOS OR ALERTS) */}
               {!isPromo && !isAlert && (
                 <div className="border-t border-green-200 pt-3">
                   <p className="text-xs text-gray-500 mb-2">Simulate Client Reply:</p>
@@ -90,4 +92,4 @@ export default async function MockOutboxPage() {
       </div>
     </main>
   );
-    }
+                       }
