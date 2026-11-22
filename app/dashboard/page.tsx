@@ -1,178 +1,87 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { resolveAlert } from './actions';
-import AutomationButton from './AutomationButton'; // Import the new button
 
 export const dynamic = 'force-dynamic';
 
-export default async function DashboardPage() {
+export default async function AdminPage() {
   const supabase = createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
+  // Verify user is a platform admin
   const { data: staffData } = await supabase
     .from('staff')
-    .select('branch_id, branches(name)')
+    .select('role')
     .eq('id', user.id)
     .single();
     
   const staff = staffData as any;
-
-  // 1. Fetch KPIs
-  const { data: surveysData } = await supabase
-    .from('surveys')
-    .select('rating, status, is_resolved')
-    .eq('branch_id', staff?.branch_id);
-
-  const surveys = surveysData as any[] || [];
-
-  const totalSent = surveys.length;
-  const totalResponded = surveys.filter(s => s.status === 'responded').length;
-  const responseRate = totalSent > 0 ? Math.round((totalResponded / totalSent) * 100) : 0;
   
-  const ratings = surveys.filter(s => s.rating).map(s => s.rating);
-  const avgRating = ratings.length > 0 
-    ? (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1) 
-    : '0.0';
+  if (staff?.role !== 'platform_admin') {
+    return (
+      <div className="p-8 text-center text-red-600 font-bold">
+        Access Denied. You are not a Platform Admin.
+      </div>
+    );
+  }
 
-  const unresolvedAlerts = surveys.filter(s => s.rating && s.rating <= 2 && !s.is_resolved).length;
+  // Fetch all restaurants and their branches
+  const { data: restaurantsData } = await supabase
+    .from('restaurants')
+    .select(`
+      id, 
+      name, 
+      created_at,
+      branches (id, name, timezone)
+    `)
+    .order('created_at', { ascending: false });
 
-  // 2. Fetch recent feedback
-  const { data: recentSurveysData } = await supabase
-    .from('surveys')
-    .select('id, rating, emoji, comment, responded_at, is_resolved, clients(name, phone_number)')
-    .eq('branch_id', staff?.branch_id)
-    .eq('status', 'responded')
-    .order('responded_at', { ascending: false })
-    .limit(20);
-
-  const recentSurveys = recentSurveysData as any[] || [];
+  const restaurants = restaurantsData as any[] || [];
 
   return (
     <main className="p-4 md:p-8 max-w-5xl mx-auto space-y-8">
-      
-      {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end border-b pb-4 gap-4">
+      <div className="flex justify-between items-center border-b pb-4">
         <div>
-          <h1 className="text-3xl font-bold">Manager Dashboard</h1>
-          <p className="text-muted-foreground">
-            {(staff?.branches as any)?.name || 'Loading...'}
-          </p>
+          <h1 className="text-3xl font-bold">Platform Admin</h1>
+          <p className="text-muted-foreground">Manage your SaaS clients</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          
-          {/* THE NEW BUTTON */}
-          <AutomationButton />
-
-          <Link href="/dashboard/promotions" className="text-sm border px-4 py-2 rounded-md hover:bg-gray-50">
-            Promotions
-          </Link>
-          <Link href="/cashier" className="text-sm bg-black text-white px-4 py-2 rounded-md hover:bg-gray-800">
-            Go to Cashier
-          </Link>
-        </div>
+        <Link href="/dashboard" className="text-sm border px-4 py-2 rounded-md hover:bg-gray-50">
+          Manager View
+        </Link>
       </div>
 
-      {/* Alert Banner */}
-      {unresolvedAlerts > 0 && (
-        <div className="bg-red-50 border border-red-200 text-red-800 p-4 rounded-lg flex items-center gap-3">
-          <span className="text-2xl">⚠️</span>
-          <div>
-            <p className="font-bold">Action Required</p>
-            <p className="text-sm">You have {unresolvedAlerts} unhappy client(s) that need attention.</p>
-          </div>
-        </div>
-      )}
+      <div className="grid gap-6">
+        <h2 className="text-xl font-bold">Registered Restaurants ({restaurants.length})</h2>
+        
+        {restaurants.length === 0 && (
+          <p className="text-gray-500">No restaurants registered yet.</p>
+        )}
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="border p-4 rounded-lg bg-white shadow-sm">
-          <p className="text-sm text-gray-500 font-medium">Total Surveys</p>
-          <p className="text-3xl font-bold">{totalSent}</p>
-        </div>
-        <div className="border p-4 rounded-lg bg-white shadow-sm">
-          <p className="text-sm text-gray-500 font-medium">Responses</p>
-          <p className="text-3xl font-bold">{totalResponded}</p>
-        </div>
-        <div className="border p-4 rounded-lg bg-white shadow-sm">
-          <p className="text-sm text-gray-500 font-medium">Response Rate</p>
-          <p className="text-3xl font-bold">{responseRate}%</p>
-        </div>
-        <div className="border p-4 rounded-lg bg-green-50 shadow-sm border-green-200">
-          <p className="text-sm text-green-700 font-medium">Avg Rating</p>
-          <div className="flex items-baseline gap-2">
-            <p className="text-3xl font-bold text-green-800">{avgRating}</p>
-            <span className="text-yellow-500 text-xl">★</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Live Feed */}
-      <div>
-        <h2 className="text-xl font-bold mb-4">Recent Feedback</h2>
-        <div className="space-y-4">
-          {recentSurveys.length === 0 && (
-            <div className="text-center p-8 bg-gray-50 border rounded-lg text-gray-500">
-              No survey responses yet. Go to the Cashier page and check someone in!
+        {restaurants.map((restaurant) => (
+          <div key={restaurant.id} className="border rounded-lg p-6 bg-white shadow-sm flex items-start gap-4">
+            <div className="w-16 h-16 bg-gray-100 rounded-md flex items-center justify-center text-2xl">
+              🏪
             </div>
-          )}
-
-          {recentSurveys.map((survey) => {
-            const isBad = survey.rating <= 2;
-            const isResolved = survey.is_resolved;
-
-            return (
-              <div 
-                key={survey.id} 
-                className={`border p-4 rounded-lg flex gap-4 shadow-sm items-start ${
-                  isBad && !isResolved ? 'bg-red-50 border-red-300' : 'bg-white'
-                }`}
-              >
-                <div className="text-4xl">{survey.emoji}</div>
-                <div className="flex-1">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <p className="font-semibold">{(survey.clients as any)?.name || 'Unknown'}</p>
-                      <p className="text-xs text-gray-500">{(survey.clients as any)?.phone_number}</p>
-                    </div>
-                    <p className="text-xs text-gray-400">
-                      {new Date(survey.responded_at).toLocaleString()}
-                    </p>
-                  </div>
-                  
-                  <div className="mt-2 flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-medium bg-gray-100 px-2 py-1 rounded">Rating: {survey.rating}/5</span>
-                    
-                    {isBad && !isResolved && (
-                      <form action={async () => {
-                        'use server';
-                        await resolveAlert(survey.id);
-                      }}>
-                        <button type="submit" className="text-xs font-bold text-white bg-red-600 hover:bg-red-700 px-3 py-1 rounded">
-                          Mark as Resolved
-                        </button>
-                      </form>
-                    )}
-
-                    {isBad && isResolved && (
-                      <span className="text-xs font-bold text-green-700 bg-green-100 px-3 py-1 rounded">
-                        ✓ Resolved
-                      </span>
-                    )}
-                  </div>
-                  
-                  {survey.comment && (
-                    <p className="mt-3 text-sm text-gray-700 italic border-l-2 pl-3">"{survey.comment}"</p>
-                  )}
-                </div>
+            <div className="flex-1">
+              <h3 className="text-xl font-bold">{restaurant.name}</h3>
+              <p className="text-sm text-gray-500 mb-2">Joined: {new Date(restaurant.created_at).toLocaleDateString()}</p>
+              
+              <div className="mt-4 border-t pt-4">
+                <h4 className="text-sm font-semibold mb-2">Branches:</h4>
+                <ul className="space-y-1">
+                  {restaurant.branches?.map((branch: any) => (
+                    <li key={branch.id} className="text-sm text-gray-700 bg-gray-50 px-3 py-1 rounded inline-block mr-2">
+                      📍 {branch.name}
+                    </li>
+                  ))}
+                </ul>
               </div>
-            );
-          })}
-        </div>
+            </div>
+          </div>
+        ))}
       </div>
-
     </main>
   );
 }
