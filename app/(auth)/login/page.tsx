@@ -4,6 +4,9 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 
+// This must be placed AFTER 'use client' but BEFORE the component
+export const dynamic = 'force-dynamic';
+
 export default function LoginPage() {
   const router = useRouter();
   const supabase = createClient();
