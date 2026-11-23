@@ -4,12 +4,8 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 
-// This must be placed AFTER 'use client' but BEFORE the component
-export const dynamic = 'force-dynamic';
-
 export default function LoginPage() {
   const router = useRouter();
-  const supabase = createClient();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -19,8 +15,14 @@ export default function LoginPage() {
     e.preventDefault();
     setError(null);
     setLoading(true);
+
+    // We initialize the client INSIDE the submit function. 
+    // This stops the Next.js build from crashing!
+    const supabase = createClient();
+    
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
+    
     if (error) {
       setError(error.message);
       return;
@@ -77,4 +79,4 @@ export default function LoginPage() {
       </form>
     </main>
   );
-  }
+                                                              }
