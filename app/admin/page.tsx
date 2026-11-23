@@ -20,12 +20,13 @@ export default async function AdminPage() {
     
   const staff = staffData as any;
   
+  // If you are getting Access Denied, change role to 'manager' in Supabase temporarily
   if (staff?.role !== 'platform_admin') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="p-8 text-center bg-white rounded-lg shadow-sm border border-red-200">
           <h1 className="text-2xl font-bold text-red-600 mb-2">Access Denied</h1>
-          <p className="text-gray-600">You do not have Platform Admin privileges.</p>
+          <p className="text-gray-600">Your role is: {staff?.role || 'None'}. You need 'platform_admin'.</p>
           <Link href="/dashboard" className="mt-4 inline-block text-blue-600 hover:underline">
             Return to Dashboard
           </Link>
@@ -35,7 +36,7 @@ export default async function AdminPage() {
   }
 
   // Fetch all restaurants and their branches
-  const { data: restaurantsData } = await supabase
+  const { data: restaurantsData, error: fetchError } = await supabase
     .from('restaurants')
     .select(`
       id, 
@@ -88,7 +89,13 @@ export default async function AdminPage() {
           <div className="md:col-span-2 space-y-4">
             <h2 className="text-xl font-bold text-gray-800">Registered Restaurants ({restaurants.length})</h2>
             
-            {restaurants.length === 0 && (
+            {fetchError && (
+              <div className="p-4 bg-red-50 text-red-700 rounded-lg border border-red-200 text-sm">
+                Database Error: {fetchError.message}
+              </div>
+            )}
+
+            {restaurants.length === 0 && !fetchError && (
               <div className="p-8 text-center bg-white border border-gray-200 rounded-xl text-gray-500">
                 No restaurants registered yet. Add your first client using the form!
               </div>
@@ -121,4 +128,4 @@ export default async function AdminPage() {
       </div>
     </main>
   );
-    }
+}
