@@ -31,4 +31,4 @@ export async function registerRestaurant(formData: FormData) {
   if (branchError) throw new Error(branchError.message);
 
   revalidatePath('/admin');
-}
+                                   }
