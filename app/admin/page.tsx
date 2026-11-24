@@ -20,6 +20,7 @@ export default async function AdminPage() {
     
   const staff = staffData as any;
   
+  // If you are getting Access Denied, change role to 'manager' in Supabase temporarily
   if (staff?.role !== 'platform_admin') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
